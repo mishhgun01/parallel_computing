@@ -1,0 +1,18 @@
+#docker build -f Dockerfile_2 --platform=linux/arm64 -t mpich-2-2 .
+
+FROM ubuntu:22.04
+
+ENV F_NAME=lab2_2.c
+ENV N=7
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    mpich \
+    && apt-get clean
+
+
+WORKDIR /app
+
+COPY ${F_NAME} .
+
+
+CMD ["sh", "-c", "mpicc $F_NAME -o main && mpiexec -n $N ./main"]
