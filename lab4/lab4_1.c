@@ -1,64 +1,81 @@
-#include <mpi.h>
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
+#include <time.h>
+#include "mpi.h"
 
-#define ROWS 6
-#define COLS 4
+#define DEFAULT_ARR_SIZE 10
 
-void print_matrix(int matrix[ROWS][COLS], int rows, int cols)
+int main(int argc, char **argv)
 {
-    for (int i = 0; i < rows; i++)
+    int rank, size;
+    int local_min = INT_MAX;
+    int global_min = INT_MAX;
+    int array_size = 20;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    if (rank == 0)
     {
-        for (int j = 0; j < cols; j++)
+        if (argc > 1)
         {
-            printf("%d ", matrix[i][j]);
+            array_size = atoi(argv[1]);
+            if (array_size <= 0)
+            {
+                printf("Размер массива не задан, используется размер по умолчанию (20).\n");
+                array_size = DEFAULT_ARR_SIZE;
+            }
+        }
+        printf("Используемый размер массива: %d\n", array_size);
+    }
+
+    MPI_Bcast(&array_size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    int *array = NULL;
+    if (rank == 0)
+    {
+        array = (int *)malloc(array_size * sizeof(int));
+        srand(time(NULL));
+        printf("Массив: ");
+        for (int i = 0; i < array_size; ++i)
+        {
+            array[i] = rand() % 100 - 50;
+            printf("%d ", array[i]);
         }
         printf("\n");
     }
-}
 
-int main(int argc, char *argv[])
-{
-    int rank, size;
+    int local_size = array_size / size;
+    int *local_array = (int *)malloc(local_size * sizeof(int));
 
-    MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-    int matrix[ROWS][COLS];
-    int local_rows = ROWS / (size - 1);
-    int local_matrix[local_rows][COLS];
+    MPI_Scatter(array, local_size, MPI_INT, local_array, local_size, MPI_INT, 0, MPI_COMM_WORLD);
 
-    if (rank == 0)
+    for (int i = 0; i < local_size; ++i)
     {
-        printf("Исходная матрица:\n");
-        for (int i = 0; i < ROWS; i++)
+        if (local_array[i] > 0 && local_array[i] < local_min)
         {
-            for (int j = 0; j < COLS; j++)
-            {
-                matrix[i][j] = rand() % 2;
-            }
-        }
-        print_matrix(matrix, ROWS, COLS);
-    }
-
-    MPI_Scatter(matrix, local_rows * COLS, MPI_INT, local_matrix, local_rows * COLS, MPI_INT, 0, MPI_COMM_WORLD);
-
-    for (int i = 0; i < local_rows; i++)
-    {
-        for (int j = 1; j < COLS; j += 2)
-        {
-            local_matrix[i][j] = 1 - local_matrix[i][j];
+            local_min = local_array[i];
         }
     }
 
-    MPI_Gather(local_matrix, local_rows * COLS, MPI_INT, matrix, local_rows * COLS, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Reduce(&local_min, &global_min, 1, MPI_INT, MPI_MIN, 0, MPI_COMM_WORLD);
 
     if (rank == 0)
     {
-        printf("Матрица после инверсии четных столбцов:\n");
-        print_matrix(matrix, ROWS, COLS);
+        if (global_min != INT_MAX)
+        {
+            printf("Минимальный положительный элемент: %d\n", global_min);
+        }
+        else
+        {
+            printf("В массиве нет положительных элементов.\n");
+        }
+        free(array);
     }
 
+    free(local_array);
     MPI_Finalize();
     return 0;
 }
