@@ -24,7 +24,6 @@ void invert_even_columns(int *matrix, int rows, int cols)
             matrix[i * cols + j] = 1 - matrix[i * cols + j];
         }
 }
-}
 
 int count_different_neighbors_in_column(int *matrix, int rows, int cols, int col_index)
 {
